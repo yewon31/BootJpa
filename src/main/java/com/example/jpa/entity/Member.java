@@ -6,12 +6,14 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "MEMBER")
 @Getter
 @Setter
-@ToString
+//@ToString
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
@@ -27,4 +29,16 @@ public class Member {
     @CreatedDate //JPA를 통해서 인서트시에 날짜가 자동 입력됨
     @Column(updatable = false) //이 컬럼이 JPA에 의해서 자동으로 변경되는 것은 방지합니다.
     private LocalDateTime signDate;
+
+    //원투매니 단방향 조인 - 그냥 사용하게 되면, 연관관계의 주인 1이 되면서 맵핑 테이블 자동 생성
+    //연관관계 주인 - FK를 관리하는 주체
+//    @OneToMany(fetch = FetchType.EAGER) //OneToMany default조인 방식은 Lazy 입니다
+//    @JoinColumn(name = "member_id") //N테이블의 member_id컬럼을 FK로 조인 하겠다. (적지 않으면 맵핑테이블 자동생성)
+//    private final List<Memo> list = new ArrayList<>();
+
+
+    //양방향 맵핑
+    //toString 한쪽에서 지워~
+    @OneToMany(mappedBy = "member") //mapperdBy는 1쪽에서 지정하고, 연관관계의 주인을 나타내는 키워드 (N쪽의 필드명)
+    private final List<Memo> list = new ArrayList<>();
 }

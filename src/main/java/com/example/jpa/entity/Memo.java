@@ -29,8 +29,13 @@ public class Memo {
 
     //N:1
     //FK 컬럼명을 명시하지 않으면 Member엔티티에 member_주키 로 자동 생성됩니다.
-    @ManyToOne
-    @JoinColumn(name = "member_id") //Member엔티티의 주키를 member_id컬럼에 저장하겠다(FK)
-    private Member member; //멤버 엔티티
+//    @ManyToOne(fetch = FetchType.LAZY) //manyToOne 기본값은 EAGER방식
+//    @JoinColumn(name = "member_id") //Member엔티티의 주키를 member_id컬럼에 저장하겠다(FK)
+//    private Member member; //멤버 엔티티
 
+
+    //양방향 맵핑
+    @ManyToOne
+    @JoinColumn(name = "member_id")
+    private Member member;
 }
