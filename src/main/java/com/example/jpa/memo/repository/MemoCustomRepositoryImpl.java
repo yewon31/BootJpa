@@ -1,17 +1,17 @@
 package com.example.jpa.memo.repository;
 
-import com.example.jpa.entity.Member;
-import com.example.jpa.entity.MemberMemoDTO;
-import com.example.jpa.entity.Memo;
+import com.example.jpa.entity.*;
+import com.example.jpa.util.Criteria;
+import com.querydsl.core.BooleanBuilder;
+import com.querydsl.core.Tuple;
+import com.querydsl.core.types.Projections;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
-import javax.persistence.Query;
-import javax.persistence.TypedQuery;
+import javax.persistence.*;
 import java.util.List;
 
 public class MemoCustomRepositoryImpl implements MemoCustomRepository {
@@ -19,6 +19,13 @@ public class MemoCustomRepositoryImpl implements MemoCustomRepository {
 
     @PersistenceContext //엔티티 매니저를 주입을 받을 때 사용하는 어노테이션
     private EntityManager entityManager;
+
+    ///////////////////쿼리DSL 사용시 엔티티매니저를 받아서 JPAFactory를 멤버변수에 저장/////////////
+    private JPAQueryFactory jpaQueryFactory;
+
+    public MemoCustomRepositoryImpl(EntityManager entityManager) {
+        this.jpaQueryFactory = new JPAQueryFactory(entityManager); //쿼리DSL팩토리는 생성될때 엔티티매니저를 받음.
+    }
 
     @Override
     @Transactional //update구문이므로
@@ -163,4 +170,137 @@ public class MemoCustomRepositoryImpl implements MemoCustomRepository {
 //        return page;
 //    }
 
+    //////////////////////////////////////////////////////////////////////////////////////////////////
+    //쿼리DSL
+    @Override
+    public Memo dslSelect() {
+
+        //엔티티를 대신해서 Q클래스를 사용함
+        QMemo memo = QMemo.memo;
+
+        //단일조회시 fetchOne, 여러행 조회 fetch(), insert, update, delete는 execute()
+        //jpql - select m from Memo m where m.mno = 10
+        Memo m = jpaQueryFactory.select(memo)
+                .from(memo)
+                .where(memo.mno.eq(11L))
+                .fetchOne();
+
+        //select값을 선택적으로 받을 때는
+//         Tuple t = jpaQueryFactory.select(memo.mno, memo.writer)
+//                .from(memo)
+//                .where(memo.mno.eq(11L) )
+//                .fetchOne();
+//
+//        System.out.println( t.get(memo.mno) );
+//        System.out.println( t.get(memo.writer) );
+        return m;
+    }
+
+    @Override
+    public List<Memo> dslSelect2() {
+
+        QMemo memo = QMemo.memo;
+        List<Memo> list = jpaQueryFactory.select(memo)
+                .from(memo)
+                .where(memo.text.like("%2%")) //and, or등등..문서확인
+                .orderBy(memo.text.asc())
+                .fetch(); //여러행 조회
+
+        return list;
+    }
+
+    @Override
+    public List<Memo> dslSelect3(String searchType, String searchName) {
+
+        QMemo memo = QMemo.memo;
+
+        //동적쿼리 구문을 만들때는 BooleanBuilder클래스를 사용합니다.
+        BooleanBuilder builder = new BooleanBuilder();
+
+        if (searchType.equals("writer")) { //searchType == writer
+            builder.and(memo.writer.like("%" + searchName + "%")); //조건절
+        }
+
+        if (searchType.equals("text")) { //searchType == text
+            builder.and(memo.text.like("%" + searchName + "%"));
+        }
+
+        List<Memo> list = jpaQueryFactory.select(memo)
+                .from(memo)
+                .where(builder)
+                .fetch();
+
+        return list;
+    }
+
+    @Override
+    public List<Memo> dslJoin() {
+
+        QMemo memo = QMemo.memo;
+        QMember member = QMember.member;
+
+        List<Memo> list = jpaQueryFactory.select(memo)
+                .from(memo)
+                //.join(memo.member , member ) //엔티티A.엔티티B = 엔티티B
+                .leftJoin(memo.member, member)
+                .fetch();
+
+        return list;
+    }
+
+    @Override
+    public Page<MemberMemoDTO> dslJoinPaging(Criteria cri, Pageable pageable) {
+
+        QMemo memo = QMemo.memo;
+        QMember member = QMember.member;
+
+        //1. 불린빌더
+        BooleanBuilder builder = new BooleanBuilder();
+        if (cri.getSearchType().equals("mno") && !cri.getSearchName().isEmpty()) { //searchType == xx 그리고 searchName != ""
+            builder.and(memo.mno.eq(Long.parseLong(cri.getSearchName()))); //where mno = x
+        }
+        if (cri.getSearchType().equals("text")) {
+            builder.and(memo.text.like("%" + cri.getSearchName() + "%")); //where text like %value%
+        }
+        if (cri.getSearchType().equals("writer")) {
+            builder.and(memo.writer.like("%" + cri.getSearchName() + "%")); //where text like %value%
+        }
+        if (cri.getSearchType().equals("textWriter")) {
+            builder.and(memo.text.like("%" + cri.getSearchName() + "%")); //where text like x or writer like x
+            builder.or(memo.writer.like("%" + cri.getSearchName() + "%"));
+        }
+
+        //2. join구문을 실행
+//        "select new com.example.jpa.entity.MemberMemoDTO(x.id, x.name, x.signDate, m.mno, m.writer, m.text) " +
+//        "from Memo m left join m.member x where 동적쿼리 limit 0, 10"
+        List<MemberMemoDTO> list = jpaQueryFactory.select(
+                        Projections.constructor(MemberMemoDTO.class,
+                                member.id,
+                                member.name,
+                                member.signDate,
+                                memo.mno,
+                                memo.writer,
+                                memo.text) //타입, 생성자순서...
+                )
+                .from(memo)
+                .leftJoin(memo.member, member)
+                .where(builder) //불린빌더
+                .orderBy(memo.mno.asc())
+                .offset(pageable.getOffset()) //limit 0, 10 이중에 앞에 값을 의미함
+                .limit(pageable.getPageSize()) // limit 0, 10, 이중에 뒤에 값을 의미함
+                .fetch();
+
+        //3. countQuery실행
+        long total = jpaQueryFactory
+                .select(memo)
+                .from(memo)
+                .leftJoin(memo.member, member)
+                .where(builder) //불린빌더
+                .fetch().size();
+
+        //4. Page객체에 맵핑
+        PageImpl<MemberMemoDTO> page = new PageImpl<>(list, pageable, total); //데이터, 페이지객체, 전체게시글수
+
+        return page;
+    }
 }

@@ -3,6 +3,7 @@ package com.example.jpa.memo.repository;
 import com.example.jpa.entity.Member;
 import com.example.jpa.entity.MemberMemoDTO;
 import com.example.jpa.entity.Memo;
+import com.example.jpa.util.Criteria;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -30,7 +31,17 @@ public interface MemoCustomRepository {
     //다대일 양방향 맵핑 사용하세요~~
 
     List<MemberMemoDTO> otmJoin3(String id); //DTO로 반환받기
-
     //Page<MemberMemoDTO> joinPage(String text, Pageable pageable); //조인된 결과를 Pageable처리
 
+    //////////////////////////////////////////////////////////////////////////////////////////////////
+    //쿼리DSL
+    Memo dslSelect(); //쿼리dsl 단일행 조회
+
+    List<Memo> dslSelect2(); //쿼리dsl 여러행 조회
+
+    List<Memo> dslSelect3(String searchType, String searchName); //불린빌더를 사용한 동적쿼리
+
+    List<Memo> dslJoin(); //쿼리dsl 조인
+
+    Page<MemberMemoDTO> dslJoinPaging(Criteria cri, Pageable pageable); //조인 + 동적쿼리 + 페이지
 }
